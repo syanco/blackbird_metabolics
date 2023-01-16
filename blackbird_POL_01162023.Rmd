@@ -1,0 +1,348 @@
+---
+title: "The Pace of Life of Partial Migration"
+author: "Scott Yanco, Nils Linek, Micheal Kearney, ..., Martin Wikelski, Jesko Partecke"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(engine.opts = list(bash = "-l"))
+```
+
+## TODO:  
+* @Nils: fill in field methods, study area, data collection, data processing(?), etc...
+
+## Introduction
+
+- Life history is fundamental to ecology and evolution, blah blah.  
+- Life history can be understood as the strategic allocation of finite energy over finite time horizons. The POL theory posits that life history trade offs are physiologically/metabolically mediated (Ricklefs & Wikelski TREE)
+- Examining the metabolic underpinning of POL has the added benefit of allowing us to measure the *strategy* rather than the outcome (e.g., a life table).
+- Understanding if and how life history relates to behavioral phenotypes remains a key challenge in evolutionary ecology. (All the behavior/POL paper shere: Reale, Dingemanse, Laskowski)
+- Such an understanding would help us make better predictions about the persistence or vulnerability of particular phenotypes under environmental change.
+- Furthermore, understanding how certain behavior types generate fitness promises to clarify how and why such behaviors emerge in the first place by describing both the ecological context and the evolutionary reward associated with such a behavior.
+-Some good examples with movement:
+- Campos Candela Ecol letters
+- Orr Spiegel sleepy lizards
+- The Corsican Blue Tit stuff
+- Seasonal migration is one such behavior whose eco-evolutionary cause remains only poorly understood.
+- Review relevant lit here: Winger's "Red Queen", Zink papers, Salewski & Bruderer, etc.
+- Futhermore, whether migratory behavior is consistently associated with a fast or slow pace of life is also debated:
+- Soriano-Redondo
+- Winger and Pegan
+- Wikelski stonechats
+- Wiersma Papers
+- Halali butterfly paper
+- Park ecol letters ecological cycles paper
+- Yanco and Pierce, Anderson and Jetz (not mig specific)
+- Therefore here we examine the metabolic time-dynamics of a partially migratory population of Blackbirds (*Turdus merula*). After controlling for differences in the metabolic cost of maintaining thermal homeostasis we examine individual metabolism at 30-minute resolution for individuals that reside year-round in southern Germany and compare these to birds that breed sympatrically with the resident population but overwinter in southern Europe.
+- Bring in a little more context about Blackbirds here - Zuniga paper, known clutch size (and variance), theoretical expectation of equal fitness implise metabolic tradeoffs *within* shared pace of life
+
+## Methods/Results
+```{r warning=FALSE}
+# Libraries
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(ggplot2)
+  library(mgcv)
+  library(patchwork)
+  library(tidymv)
+  library(ggthemes)
+  library(lubridate)
+})
+# Color Pallette
+pal <- c("ws" = "#B1624EFF", "fm" = "#5CC8D7FF") 
+```
+
+### Study area
+
+Germany...
+
+```{r, fig.cap="Study Area", width = 2, height = 2}
+ggplot()+
+  annotate("text", x = 0, y = 0, label = "Placeholder")
+```
+
+
+### Capture
+
+Nils lived in a van and captured many birds...
+
+### Biologgers
+
+Nils did many bird surgeries...
+
+```{r, echo = F}
+# Load in the model script outputs
+load("../out/night_reg.rdata")
+load("../out/tot_met.rdata")
+```
+
+
+### Metabolism Time Series
+
+```{r, echo = F}
+times <- tot_out_df %>% 
+  group_by(ring) %>% 
+  summarise(min_d = min(julian.bird),
+            max_d = max(julian.bird)) %>% 
+  mutate(dur = max_d - min_d)
+
+min_dur <- min(times$dur)
+max_dur <- max(times$dur)
+mean_dur <- mean(times$dur)
+```
+
+In order to compare metabolism between migrant and non-migrant blackbirds, we estimated daily metabolic rate for `r length(unique(tot_out_df$band))` individuals (`r length(unique(tot_out_df$band[tot_out_df$strat == "fm"]))` migrants and `r length(unique(tot_out_df$band[tot_out_df$strat == "ws"]))` non-migrants) for `r min_dur`-`r max_dur` days spanning fall capture dates to spring recaptures (mean `r round(mean_dur, 2)` days). We estimated daily metabolic rate as a function of the observed average daily heart rate.  To convert heart rate (in units of beats-per-minute) to Watts we first needed to estimate a function relating the two quantities. To do this, we subset the data to only non-migrant individuals and only included nocturnal periods of observation. Thus, this reduced data set only includes observations wherein metabolic activity (and heart rate) are expected to be related to basal metabolic rate plus thermoregulation. We then estimated the corresponding metabolic rate for these observations using the endotherm model (`endoR` function) from the `nichemapr` R package (Kearney XXXX). We supplied the model with observed ambient temperatures derived from the (Konstanz Weather Station, Deutscher Wetterdienst) as well as the observed body temperature recorded by the biologgers.  The full set of input parameters for this model is included as Appendix A.   
+
+```{bash, eval = F}
+# NOT RUN
+conda activate nichemapr
+RScript ~/projects/blackbird_POL/src/workflow/night_ind.r
+```
+
+To estimate the functional relationship between the predicted metabolic output and observed heart rate we fit a generalized additive model (GAM) using the `gam` function from the `mgcv` R package (REF). The model included a smooth effect of Julian day to account for seasonal differences in e.g., body size, tissue anabolism/catabolism, etc. and a fixed effect of heart rate. To account for individual heterogeneity we included a random slope for heart rate nested within individual. We then used the `predict` function (excluding random effect variance) to estimate predicted metabolic rate from the full heart rate dataset, resulting in full annual metabolic curves for all individuals (Fig 2).  
+
+```{r, warning = F, message=F}
+#observed met from hr
+nd <- tot_out_df %>% 
+  # filter(strat == "ws") %>% 
+  # select(heartrate, juian.bird) %>% 
+  rename(hrt = heartrate,
+         logger.id = ring) %>% 
+  mutate(dt = as_date(julian.bird) + duration(hours = time))
+
+p <- predict(fm.m,
+             newdata = nd,
+             exclude = c("s(logger.id,hrt)","s(logger.id)"))
+
+pred <- cbind(nd, p) %>% 
+  mutate(tot_min_therm = p-metab,
+         jbf = as.factor(julian.bird),
+         jb = unlist(julian.bird)) 
+
+#summarize across individuals (within each strategy-day)
+pred.sum <- pred %>% 
+  group_by(strat) %>% 
+  summarize(mhrt = mean(hrt),
+            mp = mean(p),
+            mmet = mean(metab),
+            mtemp = mean(temp),
+            mdiff = mean(tot_min_therm))
+```
+
+
+```{r, fig.cap = "Estimated metabolic rate for 61 blackbirds"}
+ggplot(pred) + 
+  geom_line(aes(x=dt, y=p, color = strat, group = logger.id), alpha = 0.5) +
+  scale_color_manual(values = pal, labels = c("Migrants","Residents"),
+                     name = "Migratory Strategy") +
+  ylab("Metabolic Rate (W)") +
+  xlab("Julian Bird") +
+  theme_minimal()
+```
+
+We then modeled metabolic rate over time for each strategy using a GAM with a smooth effect of date separated by the strategy factor (and including a random effect of individual).  Using the `tidymv` package, we calculate the difference between the two estimated smooths.
+
+```{r}
+fm_met <-gam(p ~ strat + s(jb, by = strat) + s(logger.id, bs = "re"), 
+             data = pred)
+summary(fm_met)
+```
+
+```{r fig.cap = "Difference in estimated metabolic rate between migrants and residents. Pink shaded areas represent days when the metabolic rates were significnalty dfifferent from one another (i.e., CIs did not overlap 0)"}
+plot_difference(
+  fm_met,
+  series = jb,
+  difference = list(strat = c("fm","ws"))
+)+
+  ylab("Difference in total metabolic rate \n
+       (=migrants - residents)") +
+  xlab("Day") +
+  theme_tufte()
+
+met_diff <- get_difference(
+  fm_met,
+  # series = jb,
+  comp = list(strat = c("fm","ws")),
+  cond = list(jb = unique(pred$jb))
+) %>% 
+  mutate(sig = case_when((difference-CI) < 0 & 0 < (difference+CI)~"non",
+                         TRUE ~ "sig"))
+# #this produces migrants-residents differences (so negative means res metabolism
+# #exceeded migrant and vie versa)
+
+```
+
+We find minor but significant differences in metabolic rate between strategies. Specifically, we see migrants exhibit lower metabolic rates than migrants throughout the study period with the largest differences on day 92, just prior to migration (call back to Nils' paper here). However, migrants and residents experience different weather regimes during migration and over-wintering. Thus, metabolic expenditures for thermoregulation may differ between the strategies and may mask metabolic differences not related to homeostasis (e.g., those related to growth, activity, reproduction, etc.). Therefore we controlled for potential differences in thermoregulatory metabolism by again using the `endoR` function of the `nichemapr` package to estimate basal metabolic rate + thermoregulatory metabolism based on the observed ambient and body temperatures for the 61 blackbirds. Input parameters matched those supplied to the nighttime-only analysis (Appendix A) with the exception of solar irradiation.  We estimated solar irradiation using the `micro_global` function from the `nichemapr` package which allows us to estimate daily solar irradiation for any location on earth.  We used the approximate location of the shared breeding grounds (`r loc`) for all individuals. The differing weather contexts during the wintering period resulted in markedly different metabolic costs of thermoregulation between the two strategies, with migrants expending substantially less energy (Fig. 4A) to maintain approximately equivalent body temperatures (Fig. 4B). We again use a factor-smooth GAM with a random effect of individual to model thermoregulatory metabolism for the two strategies and again estimated the mean difference between the two strategies using the `tidymv` package. Migrants had slightly higher thermoregulatory metabolism from days 49-86 but substantially lower metabolic costs of thermoregulation from days 93-252 (Fig. 4C). 
+**[NB for the solar irradiation, we are currently using Radolfzell as the location for all birds - we probably want to match the same approach we use for temperature here; that said. this approach is conservative, so once we give the migrants even more solar energy, it will further reduce the metabolic costs of thermoregulation and thus magnify the differences in the "metabolic remainder"...]** 
+
+```{bash, eval = F}
+# NOT RUN
+conda activate nichemapr
+RScript ~/projects/blackbird_POL/src/workflow/met_model_full.r
+```
+
+```{r fig.height=6, fig.cap= "A) Daily metabolic rate for basal metabolism and thermoregulation only for both migrant and resident blackbirds; B) Daily observed body temperatures for both migrant and resident blackbirds; C) differences in daily basal + thermoregulatory metabolicm between migrants and residents. Positive numbers indicate higher metabolic rate in migrants whereas negative numbers indicate lower metabolic activity for migrants. Pink shading indicates when observed differences were distinguishable from 0 on the basis of non-overlapping CIs."}
+fm_therm <-gam(metab ~ strat + s(jb, by = strat) + s(logger.id, bs = "re"), 
+               data = pred)
+
+p4a <- ggplot(pred) + 
+  geom_line(aes(x=as.factor(julian.bird), y=metab, color = strat, group = logger.id)) +
+  scale_color_manual(values = pal, labels = c("Migrants","Residents"),
+                     name = "Migratory Strategy") +
+  ylab("Thermoregulatory \n Metabolic Rate (W)") +
+  xlab("Julian Bird") +
+  theme_minimal()
+
+p4b <- ggplot(pred) + 
+  geom_line(aes(x=as.factor(julian.bird), y=temp, color = strat, group = logger.id)) +
+  scale_color_manual(values = pal, labels = c("Migrants","Residents"),
+                     name = "Migratory Strategy") +
+  ylab("Body Temperature (C)") +
+  xlab("Julian Bird") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p4c <- plot_difference(
+  fm_therm,
+  series = jb,
+  difference = list(strat = c("fm", "ws"))
+) +
+  ylab("Difference in thermoregulatory metabolism \n
+       (=migrants - residents)") +
+  xlab("Day") +
+  theme_tufte()
+p4a / p4b / p4c + plot_annotation(tag_levels = 'A')
+
+therm_diff <- get_difference(
+  fm_therm,
+  # series = jb,
+  comp = list(strat = c("fm","ws")),
+  cond = list(jb = unique(pred$jb))
+) %>% 
+  mutate(sig = case_when((difference-CI) < 0 & 0 < (difference+CI)~"non",
+                         TRUE ~ "sig"))
+```
+
+
+To calculate the daily individual "metabolic remainder", we subtracted the daily estimated metabolic expenditure for basal metabolism + thermoregulation from the estimated total daily metabolic rate for each individual. This metabolic remainder, then, describes the metabolic activity directed toward all other biological processes after controlling for basal metabolic rates and differential thermoregulatory costs between the two strategies.
+We estimated the mean daily metabolic remainder for each strategy again using a factor-smooth GAM with a random effect of individual in the `mcgv` package and again estimated the mean difference between the two strategies using the `tidymv` package.
+
+```{r}
+fm_remain <-gam(tot_min_therm ~ strat + s(jb, by = strat) + s(logger.id, bs = "re"), 
+                data = pred)
+summary(fm_remain)
+```
+
+```{r fig.cap = "A) Daily metabolic remainders for migrant and resident blackbirds. Metabolic remainder is the estimated daily metabolic expenditure after removing basal metabolism and themoregulatory expenses; B) Difference in daily metabolic remainder between migrants and residents. Positive numbers indicate higher metabolic rate in migrants whereas negative numbers indicate lower metabolic activity for migrants. Pink shading indicates when observed differences were distinguishable from o on the basis of non-overlapping CIs."}
+p5a <- ggplot(pred)+
+  geom_line(aes(x = jbf, y = tot_min_therm, color = strat, group = logger.id )) +
+  # scale_color_manual(values = pal, labels = c("Migrants","Residents"),
+  #                    name = "Migratory Strategy") +
+  ylab("Metabolic Remainder (W)") +
+  xlab("Julian Bird") +
+  theme_minimal()
+
+p5b <- plot_difference(
+  fm_remain,
+  series = jb,
+  difference = list(strat = c("fm", "ws"))
+) +
+  ylab("Difference in metabolic remainder \n
+       (=migrants - residents)") +
+  xlab("Day") +
+  theme_tufte()
+
+p5a / p5b + plot_annotation(tag_levels = 'A')
+
+remain_diff <- get_difference(
+  fm_remain,
+  # series = jb,
+  comp = list(strat = c("fm","ws")),
+  cond = list(jb = unique(pred$jb))
+) %>% 
+  mutate(sig = case_when((difference-CI) < 0 & 0 < (difference+CI)~"non",
+                         TRUE ~ "sig"))
+```
+
+We find significant differences in the metabolic remainder across the two migratory strategies (Fig. 5). Specifically, between days 49 and 99 migrants exhibited slightly lower metabolic remainder whereas between days 110 to 239 migrants display substantially higher metabolic remainder.
+
+###Cummulative Throughput
+
+**N.B. - I'm not totally sure how valid this is and would love feedback... I'm summing a mean rate sampled at discrete intervals but that rate, of course, is realized over continuous time.  If we assume rate constancy between the "sampling intervals" then the sums should be proportional to the true energy expenditure, thus the ratio we ultimately calculate is expected to be valid?**
+
+To consider the total difference in metabolic throughput/expenditure we calculated the cummulative metabolic activity for our entire study period for each strategy, which is expected to be *proportional* to the absolute total metabolic throughput. We calculated this cummulative expenditure for both total metabolic activity as predicted by heart rate as well as the metabolic remainder. For each quantity, we then calculate the ratio between the two strategies to understand the total relative metabolic "expense" of each strategy.
+
+```{r}
+daily_mean_remain <- pred %>% 
+  group_by(strat, jb) %>% 
+  summarise(x = mean(tot_min_therm)) %>% 
+  ungroup() %>% 
+  group_by(strat) %>% 
+  summarise(x = sum(x))
+
+fmtotrem <- daily_mean_remain %>% 
+  filter(strat == "fm") %>% 
+  pull(x)
+
+wstotrem <- daily_mean_remain %>% 
+  filter(strat == "ws") %>% 
+  pull(x)
+
+(remain_ratio <- fmtotrem/wstotrem)
+
+daily_mean_tot <- pred %>% 
+  group_by(strat, jb) %>% 
+  summarise(x = mean(p)) %>% 
+  ungroup() %>% 
+  group_by(strat) %>% 
+  summarise(x = sum(x))
+
+fmtot <- daily_mean_tot %>% 
+  filter(strat == "fm") %>% 
+  pull(x)
+
+wstot <- daily_mean_tot %>% 
+  filter(strat == "ws") %>% 
+  pull(x)
+
+(tot_ratio <- fmtot/wstot)
+
+
+```
+We find the cumulative total metabolic ratio between migrants and residents is 0.99.  This suggests that while overall metabolic dynamics between the strategies vary, the difference is very slight relative to the magnitude of metabolic activity.  Put simply, the differences in total metabolic activity that we observe between migrants and residents are likely negligible. On the other hand, differences in metabolic remainder between migrants and residents were substantial - the cumulative metabolic remainder of migrants was nearly double that of residents (ratio = 1.91).
+
+
+
+
+## Discussion
+
+* We observed clear differences in the metabolic dynamics between migrants and year-round residents during migratory and over-wintering periods .
+* Differences in the weather context to which individuals were exposed during the wintering period resulted in markedly different metabolic costs of maintaining body temperature set point. 
+* This resulted in substantial differences in the "metabolic remainder". The metabolic activity of migrants was nearly double that of residents during our study, presumably driven primarily by the reduced metabolic costs of thermoregulation.
+* While not considered in this study, clutch size in Blackbirds exhibits little variance and there is no evidence of differential reproductive investment between the two strategies. 
+* Therefore, it is unlikely that this excess metabolic activity is being used to increase annual fecundity.
+* Interestingly, this results in broadly similar total cumulative metabolic throughput (though with varying dynamics - ref Nils' in prep ms here; probably also that new review from Bearhop group about capital migration).
+* There are multiple theoretical explanations for the maintenance of partial migration as an evolutionary stable strategy within an admixing population. (refs to Hannah Kokko work, Taylor and Norris, my Ecology paper, etc).  All essentially imply different pathways to equivalent individual performance (though many invoke density dependence to get there).
+* Because we assume annual reproductive investment to be equivalent, life history theory would then predict roughly equivalent survival risks across strategies.  
+*However Zuniga et al 2018 find higher overwinter survival for migrants...
+* Interpreting top line metabolic rate as a rough proxy for pace of life, differences in total metabolic rate between residents and migrants in this study were negligible, as predicted by theory.
+* However, the metabolic dynamics, and specifically the relative allocation to metabolic objectives varied between these strategies such that the beneficial conditions offered by migration to warmer climes (more than?) balance out the energetic costs of the behavior to generate equivalent individual performance.
+* This finding uncovers a potential physiological mechanism by which individual heterogeneity in behavior type (migration) can emerge even when life history strategy does not.
+* Furthermore this suggests a novel metabolic explanation for the emergence and maintenance of partial migration - namely that the net costs-benefits of the two strategies are equivalent while the ratio between costs/benefits is not. **[make sure this really is novel...]**
+* Something about how this can also help us understand the location of seasonal ranges:
+* Blackbirds are wintering in a location that exactly allows them to balance the cost-benefit equation of migration.  If they were able to make that net value exceed that of residency then we would expect (all else being equal) migration to take over as the dominant or exclusive phenotype.
+* Clearly there are other factors influencing this equation, especially in other systems where extrinsic mortality is of particularly high risk, or migratory routes involving truly risky flights (e.g., oceanic crossings).
+* However, that all being said, this is more in keeping with a Winger Red Queen type explanation for the emergence and maintenance of migration that it is an "optimal annual routine" explanation.
+
+## Acknowledgements
+
+Thanks for all the fish.
+
+## Literature Cited
+
+## Appendices

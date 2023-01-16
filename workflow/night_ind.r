@@ -3,6 +3,7 @@
 library(NicheMapR)
 library(tidyverse)
 library(mgcv)
+library(lubridate)
 
 # INITS #
 
@@ -43,12 +44,14 @@ SUBQFAT <- 1 # subQ fat is present
 # Load Blackbird data
 night <- read.csv("data/df_bb_thermo_watts_night.csv")
 
-#summarize to daily time interval
-night1 <- night %>% 
-  group_by(logger.id, julian.bird) %>% 
-  summarize(hrt = mean(hrt, na.rm = T), 
-            temp = mean(temp, na.rm = T),
-            airtemp = mean(airtemp, na.rm = T))
+# #summarize to daily time interval
+# night1 <- night %>% 
+#   #TODO: this is splitting across nights, need to get a measure of julian night
+#   #TODO: run at higher temporal resolution
+#   group_by(logger.id, julian.bird) %>% 
+#   summarize(hrt = mean(hrt, na.rm = T), 
+#             temp = mean(temp, na.rm = T),
+#             airtemp = mean(airtemp, na.rm = T))
 
 # create vector of individuals over which to loop
 inds <- levels(night$logger.id)
@@ -59,12 +62,15 @@ inds <- levels(night$logger.id)
 out <- list()
 
 # Loop through individuals, fitting the endo model to each
-for(i in 1: length(inds)){
+for(i in 1:length(inds)){
   
   # extract individual from the data
-  dat1 <- night1 %>% 
+  dat1 <- night %>% 
     filter(logger.id == inds[i]) %>% 
-    arrange(julian.bird) %>% # sort by time
+    mutate(dt = mdy_hm(date.time),
+           time = hour(dt) + minute(dt)/60) %>% # add time stamp
+    arrange(julian.bird, time) %>% # sort by time
+    select(logger.id, julian.bird, time, hrt, temp, airtemp) %>%
     filter(complete.cases(.)) # exclude missing data
   
   if(nrow(dat1) > 0){ # check that individual was found and has data
@@ -154,7 +160,18 @@ summary(fm.hr)
 fm.m <-gam(met ~ s(julian.bird) + hrt + s(logger.id, bs = "re") + s(logger.id, hrt, bs = "re"), 
            data = night_out_df)
 summary(fm.m)
+plot(fm.m, all.terms =T, shift = coef(fm.m)[1])
 
+
+fm.m2 <-gam(met ~ s(julian.bird) + s(hrt) + s(logger.id, bs = "re") + s(logger.id, hrt, bs = "re"),
+           data = night_out_df)
+summary(fm.m2)
+plot(fm.m2)
+
+fm.0 <-gam(met ~  s(hrt) + s(logger.id, bs = "re") + s(logger.id, hrt, bs = "re"),
+           data = night_out_df)
+summary(fm.0)
+plot(fm.0)
 # WRITE OUT
 
 save.image(file = "out/night_reg.rdata")

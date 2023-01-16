@@ -2,15 +2,16 @@
 
 library(NicheMapR)
 library(tidyverse)
+library(lubridate)
 
 # DATA #
 # 
 # Load Blackbird data
-load("data/Blackbird.RData")
+load("data/df_bb_meta_24-12-22.rdata")
 
 # Solar model
 loc <- c(8.966910, 47.745237) # use location of Radolfzell for all birds
-  #TODO: this is not perfect but is conservative wrt differences btw strategies
+#TODO: this is not perfect but is conservative wrt differences btw strategies
 Usrhyt <- 1 # height for met = 1m
 
 # run microclimate model
@@ -19,17 +20,29 @@ Usrhyt <- 1 # height for met = 1m
 micro <- micro_global(loc = loc, Usrhyt = Usrhyt, solonly = 1, timeinterval = 365)
 
 # extract solar components
+# metout <- as.data.frame(micro$metout) %>% 
+#   group_by(DOY) %>% 
+#   summarize(SOLR = mean(SOLR),
+#             mt = mean(TALOC))
+
 metout <- as.data.frame(micro$metout) %>% 
-  group_by(DOY) %>% 
-  summarize(SOLR = mean(SOLR),
-            mt = mean(TALOC))
+  mutate(time = TIME/60)
 
 # make master dataframe to feed into endo model
-dat <- bodytemperature %>% 
-  full_join(heartrate) %>% 
-  full_join(weather, by = c("strat", "julian.bird")) %>% 
-  # left_join(si_47, by = c("julian.bird" = "day")) # only using SI from Germany for now - #TODO = need to make similar to airtemp
-  left_join(metout, by = c("julian.bird" = "DOY"))
+# dat <- bodytemperature %>% 
+#   full_join(heartrate) %>% 
+#   full_join(weather, by = c("strat", "julian.bird")) %>% 
+#   # left_join(si_47, by = c("julian.bird" = "day")) # only using SI from Germany for now - #TODO = need to make similar to airtemp
+#   left_join(metout, by = c("julian.bird" = "DOY")) %>% 
+#   mutate(ring2 = case_when(ring == "EC56319" & strat == "wc" ~ "EC56319A",
+#                    ring == "EC56319" & strat == "wc" ~ "EC56319A",
+#                    TRUE ~ ring))
+
+dat <- df_bb_meta %>% 
+  mutate(dt = ymd_hms(date_time),
+         time = hour(dt) + minute(dt)/60) %>% # add time stamp
+  left_join(metout, by = c("julian_bird" = "DOY", "time"))
+
 
 # INITS #
 
@@ -73,7 +86,8 @@ for(i in 1: length(inds)){
   
   dat1 <- dat %>% 
     filter(ring == inds[i])%>% 
-    na.omit
+    na.omit() %>% 
+    arrange(julian_bird, time)  # sort by time
   
   
   if(nrow(dat1) > 0){
@@ -81,7 +95,7 @@ for(i in 1: length(inds)){
     endo <- lapply(1:nrow(dat1), function(x) {
       endoR(WRITE_INPUT = 1,
             TC = dat1$bodytemp[x],
-            TA = dat1$airtemp[x],
+            TA = dat1$airtemp_experienced[x],
             QSOLR = dat1$SOLR[x],
             TC_MAX = TC_MAX,
             AMASS = AMASS,
@@ -126,13 +140,12 @@ for(i in 1: length(inds)){
     # store results in df with input data
     tmp <- data.frame(heartrate = dat1$heartrate, 
                       metab = enbal$QGEN,
-                      airtemp = dat1$airtemp,
+                      airtemp = dat1$airtemp_experienced,
                       temp = dat1$bodytemp,
-                      julian.bird = dat1$julian.bird,
-                      band = dat1$ring,
-                      strat = dat1$strat,
-                      logger.id = dat1$ring
-    )
+                      julian.bird = dat1$julian_bird,
+                      time = dat1$time,
+                      ring = dat1$ring,
+                      strat = dat1$strat    )
     
     out[[i]] <- tmp
   } else {

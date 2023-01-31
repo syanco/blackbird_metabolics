@@ -82,7 +82,7 @@ for(j in 1:scenarios) {
   
   # Init cluster
   registerDoFuture()
-  plan(multisession, workers = 24, gc = TRUE)
+  plan(multisession, workers = 48, gc = TRUE)
   
   # Loop through individuals, fitting the endo model to each
   out <- foreach(i = 1:length(inds), .errorhandling = "pass", .inorder = F) %dorng% {
@@ -109,7 +109,7 @@ for(j in 1:scenarios) {
   tot_out_df <- do.call("rbind", out) %>% 
     drop_na(heartrate, met)
   
-  saveRDS(tot_out_df, file = glue("tot_out_{scenarios[j]}.rds"))
+  saveRDS(tot_out_df, file = glue("out/tot_out_{scenarios[j]}.rds"))
   
   } #j 
 

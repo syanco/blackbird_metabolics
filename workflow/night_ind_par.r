@@ -69,7 +69,7 @@ inds <- unique(night$ring)
 #inds <- inds[1:2]
 
 registerDoFuture()
-plan(multisession, workers = 1, gc = TRUE)
+plan(multisession, workers = 48, gc = TRUE)
 
 # i <- 2
 # Loop through individuals, fitting the endo model to each

@@ -6,7 +6,7 @@
 #SBATCH --partition day
 #SBATCH -c 48
 #SBATCH --mem-per-cpu 2G
-#SBATCH -J Blackbird-Met-20230130
+#SBATCH -J Blackbird-Night-20230130
 
 # Load conda env
 module load miniconda
@@ -19,5 +19,5 @@ wd=/home/sy522/project/blackbird_POL
 cd $wd
 
 # Execute calc size script/
-Rscript $wd/src/workflow/met_model_full_par.r
+Rscript $wd/src/workflow/night_ind_par.r
 

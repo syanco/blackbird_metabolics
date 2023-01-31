@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH -t 2-
+#SBATCH -t 1-
 #SBATCH --mail-type ALL
 #SBATCH --mail-user scott.yanco@yale.edu
-#SBATCH --partition week
+#SBATCH --partition day
 #SBATCH -c 48
-#SBATCH --mem-per-cpu 2.5G
+#SBATCH --mem-per-cpu 2G
 #SBATCH -J Blackbird-Met-20230130
 
 # Load conda env

@@ -7,7 +7,7 @@ library(lubridate)
 # DATA #
 # 
 # Load Blackbird data
-load("data/df_bb_meta_24-12-22.rdata")
+load("data/df_bb_meta_20.01.23_interpolated.rdata")
 
 # Solar model
 loc <- c(8.966910, 47.745237) # use location of Radolfzell for all birds
@@ -51,7 +51,7 @@ AMASS <- 0.1  # mass (kg)
 SHAPE <- 4 # ellipsoid
 SHAPE_B <- 2  # ratio length/width
 SHAPE_B_MAX <- 3  # maximum ratio of length to width/depth
-SAMODE = 1 # bird surface area allomaetry
+SAMODE = 1 # bird surface area allometry
 TC_MAX <- 45
 
 # feather properties - these are straigh from vignette (but modify fcn defaults) 
@@ -81,6 +81,7 @@ inds <- unique(dat$ring)
 # Init empty list to store results
 out <- list()
 
+# i <- 2
 # Loop over individuals, run endo model
 for(i in 1: length(inds)){
   
@@ -95,7 +96,7 @@ for(i in 1: length(inds)){
     endo <- lapply(1:nrow(dat1), function(x) {
       endoR(WRITE_INPUT = 1,
             TC = dat1$bodytemp[x],
-            TA = dat1$airtemp_experienced[x],
+            TA = dat1$experienced_temp_mean[x],
             QSOLR = dat1$SOLR[x],
             TC_MAX = TC_MAX,
             AMASS = AMASS,
@@ -140,7 +141,7 @@ for(i in 1: length(inds)){
     # store results in df with input data
     tmp <- data.frame(heartrate = dat1$heartrate, 
                       metab = enbal$QGEN,
-                      airtemp = dat1$airtemp_experienced,
+                      airtemp = dat1$experienced_temp_mean,
                       temp = dat1$bodytemp,
                       julian.bird = dat1$julian_bird,
                       time = dat1$time,

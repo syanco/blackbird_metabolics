@@ -42,7 +42,10 @@ SUBQFAT <- 1 # subQ fat is present
 # DATA #
 # 
 # Load Blackbird data
-night <- read.csv("data/df_bb_thermo_watts_night.csv")
+load("data/df_bb_meta_20.01.23_interpolated.rdata")
+
+night <- df_bb_meta %>% 
+  filter(dayphase_conservative == "night")
 
 # #summarize to daily time interval
 # night1 <- night %>% 
@@ -54,23 +57,24 @@ night <- read.csv("data/df_bb_thermo_watts_night.csv")
 #             airtemp = mean(airtemp, na.rm = T))
 
 # create vector of individuals over which to loop
-inds <- levels(night$logger.id)
+inds <- unique(night$ring)
 
 # ENODTHERM MODEL
 
 # create empty list to store results
 out <- list()
 
+# i <- 1
 # Loop through individuals, fitting the endo model to each
 for(i in 1:length(inds)){
   
   # extract individual from the data
   dat1 <- night %>% 
-    filter(logger.id == inds[i]) %>% 
-    mutate(dt = mdy_hm(date.time),
+    filter(ring == inds[i]) %>% 
+    mutate(dt = ymd_hms(date_time),
            time = hour(dt) + minute(dt)/60) %>% # add time stamp
-    arrange(julian.bird, time) %>% # sort by time
-    select(logger.id, julian.bird, time, hrt, temp, airtemp) %>%
+    arrange(julian_bird, time) %>% # sort by time
+    select(ring, julian_bird, time, heartrate, bodytemp, experienced_temp_mean) %>%
     filter(complete.cases(.)) # exclude missing data
   
   if(nrow(dat1) > 0){ # check that individual was found and has data
@@ -128,12 +132,12 @@ for(i in 1:length(inds)){
                             replacement = "")
     
     # create output df including observed data
-    tmp <- data.frame(hrt = dat1$hrt, 
+    tmp <- data.frame(hrt = dat1$heartrate, 
                       met = enbal$QGEN,
-                      airtemp = dat1$airtemp,
-                      temp = dat1$temp,
-                      julian.bird = dat1$julian.bird,
-                      logger.id = dat1$logger.id
+                      airtemp = dat1$experienced_temp_mean,
+                      temp = dat1$bodytemp,
+                      julian.bird = dat1$julian_bird,
+                      ring = dat1$ring
     )
     
     out[[i]] <- tmp
@@ -146,29 +150,29 @@ for(i in 1:length(inds)){
 
 
 night_out_df <- do.call("rbind", out) %>% 
-  drop_na(hrt, met)
+  drop_na(heartrate, met)
 
 
 # HEART RATE ~ MET 
 
 #hr ~ met
-fm.hr <-gam(hrt ~ s(julian.bird) + met + s(logger.id, bs = "re") + s(logger.id, met, bs = "re"), 
+fm.hr <-gam(hrt ~ s(julian_bird) + met + s(ring, bs = "re") + s(ring, met, bs = "re"), 
             data = night_out_df)
 summary(fm.hr)
 
 # met ~ hr
-fm.m <-gam(met ~ s(julian.bird) + hrt + s(logger.id, bs = "re") + s(logger.id, hrt, bs = "re"), 
+fm.m <-gam(met ~ s(julian_bird) + hrt + s(ring, bs = "re") + s(ring, hrt, bs = "re"), 
            data = night_out_df)
 summary(fm.m)
 plot(fm.m, all.terms =T, shift = coef(fm.m)[1])
 
 
-fm.m2 <-gam(met ~ s(julian.bird) + s(hrt) + s(logger.id, bs = "re") + s(logger.id, hrt, bs = "re"),
+fm.m2 <-gam(met ~ s(julian_bird) + s(hrt) + s(ring, bs = "re") + s(ring, hrt, bs = "re"),
            data = night_out_df)
 summary(fm.m2)
 plot(fm.m2)
 
-fm.0 <-gam(met ~  s(hrt) + s(logger.id, bs = "re") + s(logger.id, hrt, bs = "re"),
+fm.0 <-gam(met ~  s(hrt) + s(ring, bs = "re") + s(ring, hrt, bs = "re"),
            data = night_out_df)
 summary(fm.0)
 plot(fm.0)

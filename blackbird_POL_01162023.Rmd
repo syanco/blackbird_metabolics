@@ -79,6 +79,13 @@ Nils did many bird surgeries...
 # Load in the model script outputs
 load("../out/night_reg.rdata")
 load("../out/tot_met.rdata")
+
+```
+
+```{r}
+tot_out_df <- tot_out_df %>% 
+  filter(julian.bird < 271) %>% 
+  mutate(strat = fct_relevel(strat, rev(levels(strat))))
 ```
 
 
@@ -122,7 +129,8 @@ p <- predict(fm.m,
 pred <- cbind(nd, p) %>% 
   mutate(tot_min_therm = p-metab,
          jbf = as.factor(julian.bird),
-         jb = unlist(julian.bird)) 
+         jb = unlist(julian.bird),
+         strat = fct_relevel(strat, rev(levels(strat)))) 
 
 #summarize across individuals (within each strategy-day)
 pred.sum <- pred %>% 
@@ -191,8 +199,8 @@ fm_therm <-gam(metab ~ strat + s(jb, by = strat) + s(logger.id, bs = "re"),
                data = pred)
 
 p4a <- ggplot(pred) + 
-  geom_line(aes(x=as.factor(julian.bird), y=metab, color = strat, group = logger.id)) +
-  scale_color_manual(values = pal, labels = c("Migrants","Residents"),
+  geom_line(aes(x=as.factor(julian.bird), y=metab, color = strat, group = logger.id), alpha = 0.4) +
+  scale_color_manual(values = pal, labels = c(fm = "Migrants", ws = "Residents"),
                      name = "Migratory Strategy") +
   ylab("Thermoregulatory \n Metabolic Rate (W)") +
   xlab("Julian Bird") +
@@ -200,7 +208,7 @@ p4a <- ggplot(pred) +
 
 p4b <- ggplot(pred) + 
   geom_line(aes(x=as.factor(julian.bird), y=temp, color = strat, group = logger.id)) +
-  scale_color_manual(values = pal, labels = c("Migrants","Residents"),
+  scale_color_manual(values = pal, labels = c(fm = "Migrants", ws = "Residents"),
                      name = "Migratory Strategy") +
   ylab("Body Temperature (C)") +
   xlab("Julian Bird") +

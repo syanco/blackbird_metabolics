@@ -6,7 +6,7 @@
 #SBATCH --partition day
 #SBATCH -c 48
 #SBATCH --mem-per-cpu 2G
-#SBATCH -J Blackbird-Met-20230130
+#SBATCH -J Blackbird-Met-20230615
 
 # Load conda env
 module load miniconda

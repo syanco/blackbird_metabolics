@@ -35,8 +35,8 @@ runMod <- function(dat){
           ANDENS = ANDENS,
           SUBQFAT = SUBQFAT,
           
-          # add metabolic multiplier
-          TIMACT = 1,
+          # # add metabolic multiplier
+          # TIMACT = 1,
           
           THERMOREG = 1
     ) #endoR

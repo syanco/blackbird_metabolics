@@ -55,8 +55,8 @@ SUBQFAT <- 1 # subQ fat is present
 load("data/df_bb_meta_20.01.23_interpolated.rdata")
 
 dat0 <- df_bb_meta %>%
-  filter(complete.cases(.)) # exclude missing data
-
+  filter(complete.cases(.)) %>%  # exclude missing data
+  as.data.frame()
 
 # get transition days
 (fall_dep <- dat0 %>% 
@@ -104,7 +104,7 @@ dat1 <- dat0 %>%
 #             airtemp = mean(airtemp, na.rm = T))
 
 # create vector of individuals over which to loop
-inds <- unique(dat0$ring)
+inds <- as.character(unique(dat0$ring))
 #inds <- inds[1:2]
 
 
@@ -132,7 +132,7 @@ for(j in 1:length(scenarios)) {
       mutate(dt = ymd_hms(date_time),
              time = hour(dt) + minute(dt)/60) %>% # add time stamp
       arrange(julian_bird, time) %>% # sort by time
-      select(ring, julian_bird, time, heartrate, bodytemp, airtemp, strat) 
+      dplyr::select(ring, julian_bird, time, heartrate, bodytemp, airtemp, strat) 
     
     if(nrow(dat_ind) > 0){ # check that individual was found and has data
       runMod(dat = dat_ind) # run the model

@@ -53,7 +53,9 @@ SUBQFAT <- 1 # subQ fat is present
 load("data/df_bb_meta_27.01.23_interpolated.rdata")
 
 night <- df_bb_meta %>% 
-  filter(dayphase_conservative == "night")
+  filter(dayphase_conservative == "night") %>% 
+  filter(status == "on-site") %>% 
+  mutate(airtemp = breedingsite_temp)
 
 # #summarize to daily time interval
 # night1 <- night %>% 
@@ -81,7 +83,7 @@ out <- foreach(i = 1:length(inds), .errorhandling = "pass", .inorder = F) %dorng
     mutate(dt = ymd_hms(date_time),
            time = hour(dt) + minute(dt)/60) %>% # add time stamp
     arrange(julian_bird, time) %>% # sort by time
-    select(ring, julian_bird, time, heartrate, bodytemp, experienced_temp_mean) %>%
+    select(ring, julian_bird, time, heartrate, bodytemp, airtemp) %>%
     filter(complete.cases(.)) # exclude missing data
   
   if(nrow(dat1) > 0){ # check that individual was found and has data

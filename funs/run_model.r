@@ -3,7 +3,7 @@ runMod <- function(dat){
   # Run endo therm model 
   endo <- lapply(1:nrow(dat), function(x) {
     endoR(WRITE_INPUT = 1,
-          TC = dat$temp[x],
+          TC = dat$bodytemp[x],
           TA = dat$airtemp[x],
           TC_MAX = TC_MAX,
           QSOLR = QSOLR,
@@ -51,12 +51,13 @@ runMod <- function(dat){
                           replacement = "")
   
   # create output df including observed data
-  tmp <- data.frame(hrt = dat$heartrate, 
+  tmp <- data.frame(heartrate = dat$heartrate, 
                     met = enbal$QGEN,
-                    airtemp = dat$experienced_temp_mean,
-                    temp = dat$bodytemp,
+                    airtemp = dat$airtemp,
+                    bodytemp = dat$bodytemp,
                     julian.bird = dat$julian_bird,
-                    ring = dat$ring
+                    ring = dat$ring,
+                    strat = dat$strat
   )
   
   return(tmp)

@@ -57,6 +57,43 @@ load("data/df_bb_meta_20.01.23_interpolated.rdata")
 dat0 <- df_bb_meta %>%
   filter(complete.cases(.)) # exclude missing data
 
+
+# get transition days
+(fall_dep <- dat0 %>% 
+    group_by(ring) %>%
+    filter(status == "fall-migration") %>% 
+    summarize(start = min(julian_bird)) %>% 
+    summarize(mean(start)) %>% 
+    as.numeric() %>% 
+    round(0)
+)
+
+(spring_dep <- dat0 %>% 
+    group_by(ring) %>%
+    filter(status == "spring-migration") %>% 
+    summarize(stop = max(julian_bird)) %>% 
+    summarize(mean(stop)) %>% 
+    as.numeric() %>% 
+    round(0)
+)
+
+# Add microclimate buffering scenarios
+
+dat1 <- dat0 %>% 
+  mutate(experienced_temp_mean_buffer1 = case_when(strat == "ws" & julian_bird > fall_dep & julian_bird < spring_dep ~ experienced_temp_mean + 1,
+                                                   TRUE ~ experienced_temp_mean),
+         experienced_temp_minimum_buffer1 = case_when(strat == "ws" & julian_bird > fall_dep & julian_bird < spring_dep ~ experienced_temp_minimum + 1,
+                                                   TRUE ~ experienced_temp_minimum),
+         experienced_temp_maximum_buffer1 = case_when(strat == "ws" & julian_bird > fall_dep & julian_bird < spring_dep ~ experienced_temp_maximum + 1,
+                                                   TRUE ~ experienced_temp_maximum),
+         experienced_temp_mean_buffer2 = case_when(strat == "ws" & julian_bird > fall_dep & julian_bird < spring_dep ~ experienced_temp_mean + 2,
+                                                   TRUE ~ experienced_temp_mean),
+         experienced_temp_minimum_buffer2 = case_when(strat == "ws" & julian_bird > fall_dep & julian_bird < spring_dep ~ experienced_temp_minimum + 2,
+                                                      TRUE ~ experienced_temp_minimum),
+         experienced_temp_maximum_buffer2 = case_when(strat == "ws" & julian_bird > fall_dep & julian_bird < spring_dep ~ experienced_temp_maximum + 2,
+                                                      TRUE ~ experienced_temp_maximum)
+         )
+
 # #summarize to daily time interval
 # night1 <- night %>% 
 #   #TODO: this is splitting across nights, need to get a measure of julian night
@@ -71,18 +108,20 @@ inds <- unique(dat0$ring)
 #inds <- inds[1:2]
 
 
-
-scenarios <- c("breedingsite_temp", "experienced_temp_minimum", "experienced_temp_mean", "experienced_temp_maximum")
-# i <- 2
-# j <- 1
-for(j in 1:scenarios) {
+scenarios <- c("breedingsite_temp", 
+               "experienced_temp_minimum", "experienced_temp_mean", "experienced_temp_maximum", 
+               "experienced_temp_minimum_buffer1", "experienced_temp_mean_buffer1", "experienced_temp_maximum_buffer1",
+               "experienced_temp_minimum_buffer2", "experienced_temp_mean_buffer2", "experienced_temp_maximum_buffer2")
+# i <- 3
+# j <- 2
+for(j in 1:length(scenarios)) {
   
   dat_rename <- dat0 %>% 
     mutate(airtemp = !!as.name(scenarios[j]))
   
   # Init cluster
   registerDoFuture()
-  plan(multisession, workers = 48, gc = TRUE)
+  plan(multisession, workers = 10, gc = TRUE)
   
   # Loop through individuals, fitting the endo model to each
   out <- foreach(i = 1:length(inds), .errorhandling = "pass", .inorder = F) %dorng% {
@@ -93,7 +132,7 @@ for(j in 1:scenarios) {
       mutate(dt = ymd_hms(date_time),
              time = hour(dt) + minute(dt)/60) %>% # add time stamp
       arrange(julian_bird, time) %>% # sort by time
-      select(ring, julian_bird, time, heartrate, bodytemp, experienced_temp_mean) 
+      select(ring, julian_bird, time, heartrate, bodytemp, airtemp, strat) 
     
     if(nrow(dat_ind) > 0){ # check that individual was found and has data
       runMod(dat = dat_ind) # run the model

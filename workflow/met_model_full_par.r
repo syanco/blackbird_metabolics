@@ -59,23 +59,25 @@ dat0 <- df_bb_meta %>%
   as.data.frame()
 
 # get transition days
-(fall_dep <- dat0 %>% 
-    group_by(ring) %>%
-    filter(status == "fall-migration") %>% 
-    summarize(start = min(julian_bird)) %>% 
-    summarize(mean(start)) %>% 
-    as.numeric() %>% 
-    round(0)
-)
+# (fall_dep <- dat0 %>% 
+#     group_by(ring) %>%
+#     filter(status == "fall-migration") %>% 
+#     summarize(start = min(julian_bird)) %>% 
+#     summarize(mean(start)) %>% 
+#     as.numeric() %>% 
+#     round(0)
+# )
+fall_dep <- 98
 
-(spring_dep <- dat0 %>% 
-    group_by(ring) %>%
-    filter(status == "spring-migration") %>% 
-    summarize(stop = max(julian_bird)) %>% 
-    summarize(mean(stop)) %>% 
-    as.numeric() %>% 
-    round(0)
-)
+# (spring_dep <- dat0 %>% 
+#     group_by(ring) %>%
+#     filter(status == "spring-migration") %>% 
+#     summarize(stop = max(julian_bird)) %>% 
+#     summarize(mean(stop)) %>% 
+#     as.numeric() %>% 
+#     round(0)
+# )
+spring_dep <- 237
 
 # Add microclimate buffering scenarios
 
@@ -116,7 +118,7 @@ scenarios <- c("breedingsite_temp",
 # j <- 2
 for(j in 1:length(scenarios)) {
   
-  dat_rename <- dat0 %>% 
+  dat_rename <- dat1 %>% 
     mutate(airtemp = !!as.name(scenarios[j]))
   
   # Init cluster

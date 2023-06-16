@@ -3,7 +3,7 @@
 #SBATCH -t 1-
 #SBATCH --mail-type ALL
 #SBATCH --mail-user scott.yanco@yale.edu
-#SBATCH --partition day
+#SBATCH --partition day,week
 #SBATCH -c 48
 #SBATCH --mem-per-cpu 2G
 #SBATCH -J Blackbird-Met-20230615
